@@ -1,11 +1,11 @@
 
 This directory is intended for project specific (private) libraries.
-PlatformIO will compile them to static libraries and link into executable file.
+PlatformIO will compile them to static libraries and link them to executable files.
 
-The source code of each library should be placed in a an own separate directory
-("lib/your_library_name/[here are source files]").
+The source code of each library should be placed in separate directories, like
+"lib/private_lib/[here are source files]".
 
-For example, see a structure of the following two libraries `Foo` and `Bar`:
+For example, see the structure of the following two libraries `Foo` and `Bar`:
 
 |--lib
 |  |
@@ -21,26 +21,21 @@ For example, see a structure of the following two libraries `Foo` and `Bar`:
 |  |  |- Foo.c
 |  |  |- Foo.h
 |  |
-|  |- README --> THIS FILE
+|  |- readme.txt --> THIS FILE
 |
 |- platformio.ini
 |--src
    |- main.c
 
-and a contents of `src/main.c`:
-```
+Then in `src/main.c` you should use:
+
 #include <Foo.h>
 #include <Bar.h>
 
-int main (void)
-{
-  ...
-}
+// rest H/C/CPP code
 
-```
-
-PlatformIO Library Dependency Finder will find automatically dependent
-libraries scanning project source files.
+PlatformIO will find your libraries automatically, configure preprocessor's
+include paths and build them.
 
 More information about PlatformIO Library Dependency Finder
 - https://docs.platformio.org/page/librarymanager/ldf.html
