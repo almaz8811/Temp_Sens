@@ -13,13 +13,15 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPUpdateServer.h>
 #include <WiFiManager.h>
+#include <DHT.h>
+#include <TickerScheduler.h> //https://github.com/Toshik/TickerScheduler
 /* CODE END Includes */
 
 /* CODE BEGIN UD */
 /* User defines ---------------------------------------------------------*/
 #define BLYNK_PRINT Serial
 
-#define NAME_DEVICE						"MyHomeIoT-ESP8266"
+#define NAME_DEVICE						"Temp_Sens_Vagon"
 
 #define BUTTON_SYS0_PIN					0
 #define LED_SYS_PIN						13
@@ -43,6 +45,11 @@
 #define LED_SYS_ON()					digitalWrite(LED_SYS_PIN, LOW)
 #define LED_SYS_OFF()					digitalWrite(LED_SYS_PIN, HIGH)
 /* CODE END UD */
+
+#define DHTPIN 2      // Назначить пин датчика температуры
+#define DHTTYPE DHT22 // DHT 22, AM2302, AM2321
+
+DHT dht(DHTPIN, DHTTYPE);
 
 /* CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -69,6 +76,9 @@ BlynkTimer timer;
 
 Ticker tickerESP8266;
 
+//Планировщик задач (Число задач)
+TickerScheduler ts(2);
+
 //Declaration OTA WebUpdater
 ESP8266WebServer httpServer(80);
 ESP8266HTTPUpdateServer httpUpdater;
@@ -86,7 +96,17 @@ static void timerSendServer(void);
 static void timerReconnect(void);
 /* CODE END PFP */
 
-// the setup function runs once when you press reset or power the board
+void DHT_init()
+{
+    dht.begin();                                     //Запускаем датчик
+    delay(1000);                                           // Нужно ждать иначе датчик не определится правильно
+    dht.readTemperature();                                  // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
+    ts.add(0, 3000, [&](void *) {  
+		Blynk.virtualWrite(V1, dht.readTemperature());                                 // Запустим задачу 0 с интервалом test
+        },
+               nullptr, true);
+    }
+
 
 void setup() 
 {
@@ -224,6 +244,8 @@ void setup()
 	timer.setInterval(INTERVAL_REFRESH_DATA, timerRefreshData);
 	timer.setInterval(INTERVAL_SEND_DATA, timerSendServer);
 	timer.setInterval(INTERVAL_RECONNECT, timerReconnect);	
+DHT_init();
+	
 }
 
 // the loop function runs over and over again until power down or reset
@@ -246,6 +268,7 @@ void loop()
 	httpServer.handleClient(); // Initiates OTA WebUpdater  
 
 	readSystemKey();
+	ts.update();         //планировщик задач
 }
 
 /* BLYNK CODE BEGIN */
