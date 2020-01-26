@@ -103,6 +103,7 @@ void DHT_init()
     dht.readTemperature();                                  // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
     ts.add(0, 3000, [&](void *) {  
 		Blynk.virtualWrite(V1, dht.readTemperature());                                 // Запустим задачу 0 с интервалом test
+		Blynk.virtualWrite(V2, dht.readHumidity()); 
         },
                nullptr, true);
     }
