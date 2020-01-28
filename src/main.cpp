@@ -15,6 +15,7 @@
 #include <WiFiManager.h>
 #include <DHT.h>
 #include <TickerScheduler.h> //https://github.com/Toshik/TickerScheduler
+#include <GyverButton.h>
 /* CODE END Includes */
 
 /* CODE BEGIN UD */
@@ -49,6 +50,8 @@
 #define DHTPIN 2      // Назначить пин датчика температуры
 #define DHTTYPE DHT22 // DHT 22, AM2302, AM2321
 
+#define BTN_PIN 3   // кнопка подключена сюда (BTN_PIN --- КНОПКА --- GND)
+GButton butt1(BTN_PIN);
 DHT dht(DHTPIN, DHTTYPE);
 
 /* CODE BEGIN PV */
@@ -270,6 +273,8 @@ void loop()
 
 	readSystemKey();
 	ts.update();         //планировщик задач
+	butt1.tick();  // обязательная функция отработки. Должна постоянно опрашиватьсяbutt1.tick();  // обязательная функция отработки. Должна постоянно опрашиваться
+	//if (butt1.isSingle()) Serial.println("Single");     // проверка на один клик
 }
 
 /* BLYNK CODE BEGIN */
