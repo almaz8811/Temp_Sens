@@ -16,61 +16,67 @@
 #include <DHT.h>
 #include <TickerScheduler.h> //https://github.com/Toshik/TickerScheduler
 #include <GyverButton.h>
+#include <GyverTM1637.h>
 /* CODE END Includes */
 
 /* CODE BEGIN UD */
 /* User defines ---------------------------------------------------------*/
 #define BLYNK_PRINT Serial
 
-#define NAME_DEVICE						"Temp_Sens_Vagon"
+#define NAME_DEVICE "Temp_Sens_Vagon"
 
-#define BUTTON_SYS0_PIN					0
-#define LED_SYS_PIN						13
+#define BUTTON_SYS0_PIN 0
+#define LED_SYS_PIN 13
 
-#define BUTTON_SYS_B0_VPIN				V20
-#define WIFI_SIGNAL_VPIN				V80
+#define BUTTON_SYS_B0_VPIN V20
+#define WIFI_SIGNAL_VPIN V80
 
-#define INTERVAL_PRESSED_RESET_ESP		3000L
+#define INTERVAL_PRESSED_RESET_ESP 3000L
 #define INTERVAL_PRESSED_RESET_SETTINGS 5000L
-#define INTERVAL_PRESSED_SHORT			50
-#define INTERVAL_SEND_DATA				30033L
-#define INTERVAL_RECONNECT				60407L
-#define INTERVAL_REFRESH_DATA			4065L
-#define WIFI_MANAGER_TIMEOUT			180
+#define INTERVAL_PRESSED_SHORT 50
+#define INTERVAL_SEND_DATA 30033L
+#define INTERVAL_RECONNECT 60407L
+#define INTERVAL_REFRESH_DATA 4065L
+#define WIFI_MANAGER_TIMEOUT 180
 
-#define EEPROM_SETTINGS_SIZE			512
-#define EEPROM_START_SETTING_WM			0
-#define EEPROM_SALT_WM					12661
+#define EEPROM_SETTINGS_SIZE 512
+#define EEPROM_START_SETTING_WM 0
+#define EEPROM_SALT_WM 12661
 
-#define LED_SYS_TOGGLE()				digitalWrite(LED_SYS_PIN, !digitalRead(LED_SYS_PIN))
-#define LED_SYS_ON()					digitalWrite(LED_SYS_PIN, LOW)
-#define LED_SYS_OFF()					digitalWrite(LED_SYS_PIN, HIGH)
+#define LED_SYS_TOGGLE() digitalWrite(LED_SYS_PIN, !digitalRead(LED_SYS_PIN))
+#define LED_SYS_ON() digitalWrite(LED_SYS_PIN, LOW)
+#define LED_SYS_OFF() digitalWrite(LED_SYS_PIN, HIGH)
 /* CODE END UD */
 
-#define DHTPIN 2      // Назначить пин датчика температуры
+#define DHTPIN 4	  // Назначить пин датчика температуры
 #define DHTTYPE DHT22 // DHT 22, AM2302, AM2321
 
-#define BTN_PIN 3   // кнопка подключена сюда (BTN_PIN --- КНОПКА --- GND)
-GButton butt1(BTN_PIN);
-DHT dht(DHTPIN, DHTTYPE);
+#define CLK 2 //Назначить пин дисплея
+#define DIO 3 //Назначить пин дисплея
+
+#define BTN_PIN 3			// кнопка подключена сюда (BTN_PIN --- КНОПКА --- GND)
+GButton butt1(BTN_PIN);		//Объявляем кнопку
+DHT dht(DHTPIN, DHTTYPE);   //Объявляем датчик температуры
+GyverTM1637 disp(CLK, DIO); //Объявляем дисплей
 
 /* CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-bool shouldSaveConfigWM		= false; //flag for saving data
-bool btnSystemState0		= false;
-bool triggerBlynkConnect	= false;
-bool isFirstConnect			= true; // Keep this flag not to re-sync on every reconnection
+bool shouldSaveConfigWM = false; //flag for saving data
+bool btnSystemState0 = false;
+bool triggerBlynkConnect = false;
+bool isFirstConnect = true; // Keep this flag not to re-sync on every reconnection
 
 int startPressBtn = 0;
 
 //structure for initial settings. It now takes 116 bytes
-typedef struct {
-	char  host[33] = NAME_DEVICE;				// 33 + '\0' = 34 bytes
-	char  blynkToken[33] = "";					// 33 + '\0' = 34 bytes
-	char  blynkServer[33] = "blynk-cloud.com";	// 33 + '\0' = 34 bytes
-	char  blynkPort[6] = "8442";				// 04 + '\0' = 05 bytes
-	int   salt = EEPROM_SALT_WM;				// 04		 = 04 bytes
-} WMSettings;									// 111 + 1	 = 112 bytes (112 this is a score of 0)
+typedef struct
+{
+	char host[33] = NAME_DEVICE;			  // 33 + '\0' = 34 bytes
+	char blynkToken[33] = "";				  // 33 + '\0' = 34 bytes
+	char blynkServer[33] = "blynk-cloud.com"; // 33 + '\0' = 34 bytes
+	char blynkPort[6] = "8442";				  // 04 + '\0' = 05 bytes
+	int salt = EEPROM_SALT_WM;				  // 04		 = 04 bytes
+} WMSettings;								  // 111 + 1	 = 112 bytes (112 this is a score of 0)
 //-----------------------------------------------------------------------------------------
 
 WMSettings wmSettings;
@@ -89,7 +95,7 @@ ESP8266HTTPUpdateServer httpUpdater;
 
 /* CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-static void configModeCallback(WiFiManager* myWiFiManager);
+static void configModeCallback(WiFiManager *myWiFiManager);
 static void saveConfigCallback(void);
 static void tick(void);
 static void untick(void);
@@ -101,18 +107,20 @@ static void timerReconnect(void);
 
 void DHT_init()
 {
-    dht.begin();                                     //Запускаем датчик
-    delay(1000);                                           // Нужно ждать иначе датчик не определится правильно
-    dht.readTemperature();                                  // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
-    ts.add(0, 3000, [&](void *) {  
-		Blynk.virtualWrite(V1, dht.readTemperature());                                 // Запустим задачу 0 с интервалом test
-		Blynk.virtualWrite(V2, dht.readHumidity()); 
-        },
-               nullptr, true);
-    }
+	int t, h;
+	dht.begin();		   //Запускаем датчик
+	delay(1000);		   // Нужно ждать иначе датчик не определится правильно
+	dht.readTemperature(); // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
+	ts.add(0, 3000, [&](void *) {
+		t = dht.readTemperature();
+		Blynk.virtualWrite(V1, t); // Запустим задачу 0 с интервалом test
+		Blynk.virtualWrite(V2, dht.readHumidity());
+		disp.displayInt(t);
+	},
+		   nullptr, true);
+}
 
-
-void setup() 
+void setup()
 {
 	Serial.begin(115200);
 
@@ -124,7 +132,7 @@ void setup()
 	EEPROM.get(EEPROM_START_SETTING_WM, wmSettings);
 	EEPROM.end();
 
-	if (wmSettings.salt != EEPROM_SALT_WM) 
+	if (wmSettings.salt != EEPROM_SALT_WM)
 	{
 		Serial.println(F("Invalid wmSettings in EEPROM, trying with defaults"));
 		WMSettings defaults;
@@ -137,7 +145,7 @@ void setup()
 	Serial.println(wmSettings.blynkServer);
 	Serial.println(wmSettings.blynkPort);
 
-	tickerESP8266.attach(0.5, tick);   // start ticker with 0.5 because we start in AP mode and try to connect
+	tickerESP8266.attach(0.5, tick); // start ticker with 0.5 because we start in AP mode and try to connect
 
 	//Local intialization. Once its business is done, there is no need to keep it around
 	WiFiManager wifiManager;
@@ -201,7 +209,7 @@ void setup()
 		Serial.println(F("failed to connect and hit timeout"));
 	}
 
-	untick();	// cancel the flashing LED
+	untick(); // cancel the flashing LED
 
 	// Copy the entered values to the structure
 	strcpy(wmSettings.host, custom_device_name.getValue());
@@ -247,17 +255,18 @@ void setup()
 
 	timer.setInterval(INTERVAL_REFRESH_DATA, timerRefreshData);
 	timer.setInterval(INTERVAL_SEND_DATA, timerSendServer);
-	timer.setInterval(INTERVAL_RECONNECT, timerReconnect);	
-DHT_init();
-	
+	timer.setInterval(INTERVAL_RECONNECT, timerReconnect);
+	DHT_init();
+	disp.clear();
+disp.brightness(7);  // яркость, 0 - 7 (минимум - максимум)
 }
 
 // the loop function runs over and over again until power down or reset
-void loop() 
+void loop()
 {
 	if (Blynk.connected())
 	{
-		Blynk.run(); // Initiates Blynk Server  
+		Blynk.run(); // Initiates Blynk Server
 	}
 	else
 	{
@@ -268,26 +277,26 @@ void loop()
 	}
 
 	timer.run(); // Initiates BlynkTimer
-	
-	httpServer.handleClient(); // Initiates OTA WebUpdater  
+
+	httpServer.handleClient(); // Initiates OTA WebUpdater
 
 	readSystemKey();
-	ts.update();         //планировщик задач
-	butt1.tick();  // обязательная функция отработки. Должна постоянно опрашиватьсяbutt1.tick();  // обязательная функция отработки. Должна постоянно опрашиваться
-	//if (butt1.isSingle()) Serial.println("Single");     // проверка на один клик
+	ts.update();  //планировщик задач
+	butt1.tick(); // обязательная функция отработки. Должна постоянно опрашиватьсяbutt1.tick();  // обязательная функция отработки. Должна постоянно опрашиваться
+				  //if (butt1.isSingle()) Serial.println("Single");     // проверка на один клик
 }
 
 /* BLYNK CODE BEGIN */
 BLYNK_CONNECTED()
 {
-	untick();	
+	untick();
 
 	Serial.println(F("Blynk Connected!"));
 	Serial.println(F("local ip"));
-	Serial.println(WiFi.localIP());		
+	Serial.println(WiFi.localIP());
 
 	char str[32];
-	sprintf_P(str, PSTR("%s Online!"), wmSettings.host);	
+	sprintf_P(str, PSTR("%s Online!"), wmSettings.host);
 	Blynk.notify(str);
 
 	if (isFirstConnect)
@@ -298,10 +307,10 @@ BLYNK_CONNECTED()
 }
 
 BLYNK_WRITE(BUTTON_SYS_B0_VPIN) // Example
-{	
+{
 	//TODO: something to do when a button is clicked in the Blynk app
-	
-	Serial.println(F("System_0 button pressed is App!"));	
+
+	Serial.println(F("System_0 button pressed is App!"));
 }
 /* BLYNK CODE END */
 
@@ -339,7 +348,7 @@ static void timerReconnect(void)
 			Serial.println(F("WiFi not reconnected"));
 		}
 	}
-	else// if (WiFi.status() == WL_CONNECTED)
+	else // if (WiFi.status() == WL_CONNECTED)
 	{
 		Serial.println(F("WiFi in connected"));
 
@@ -361,7 +370,7 @@ static void timerReconnect(void)
 	}
 }
 
-static void configModeCallback(WiFiManager* myWiFiManager)
+static void configModeCallback(WiFiManager *myWiFiManager)
 {
 	Serial.println(F("Entered config mode"));
 	Serial.println(WiFi.softAPIP());
@@ -380,15 +389,14 @@ static void saveConfigCallback()
 
 static void tick(void)
 {
-	//toggle state  
-	LED_SYS_TOGGLE();     // set pin to the opposite state
+	//toggle state
+	LED_SYS_TOGGLE(); // set pin to the opposite state
 }
 
 static void untick(void)
 {
 	tickerESP8266.detach();
-	LED_SYS_OFF(); //keep LED off	
-	
+	LED_SYS_OFF(); //keep LED off
 }
 
 static void readSystemKey(void)
@@ -406,21 +414,21 @@ static void readSystemKey(void)
 		if (pressTime > INTERVAL_PRESSED_RESET_ESP && pressTime < INTERVAL_PRESSED_RESET_SETTINGS)
 		{
 			if (Blynk.connected())
-			{				
+			{
 				Blynk.notify(String(wmSettings.host) + F(" reboot!"));
 			}
-			
-			Blynk.disconnect();		
-			tickerESP8266.attach(0.1, tick);			
+
+			Blynk.disconnect();
+			tickerESP8266.attach(0.1, tick);
 			delay(2000);
 			ESP.restart();
 		}
 		else if (pressTime > INTERVAL_PRESSED_RESET_SETTINGS)
 		{
 			if (Blynk.connected())
-			{								
+			{
 				Blynk.notify(String(wmSettings.host) + F(" setting reset! Connected WiFi AP this device!"));
-			}			
+			}
 
 			WMSettings defaults;
 			wmSettings = defaults;
@@ -439,15 +447,15 @@ static void readSystemKey(void)
 			ESP.restart();
 		}
 		else if (pressTime < INTERVAL_PRESSED_RESET_ESP && pressTime > INTERVAL_PRESSED_SHORT)
-		{			
+		{
 			Serial.println(F("System button_0 pressed is Device!"));
-			// TODO: insert here what will happen when you press the ON / OFF button			
+			// TODO: insert here what will happen when you press the ON / OFF button
 		}
 		else if (pressTime < INTERVAL_PRESSED_SHORT)
-		{			
+		{
 			Serial.printf("Fixed false triggering %ims", pressTime);
 			Serial.println();
-		}		
+		}
 	}
 }
 /* CODE END USER FUNCTION */
