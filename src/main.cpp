@@ -54,8 +54,12 @@
 #define CLK 2 //Назначить пин дисплея
 #define DIO 3 //Назначить пин дисплея
 
-#define BTN_PIN 3			// кнопка подключена сюда (BTN_PIN --- КНОПКА --- GND)
-GButton butt1(BTN_PIN);		//Объявляем кнопку
+#define BTN_M_PIN 12			// кнопка Menu подключена сюда (BTN_PIN --- КНОПКА --- GND)
+#define BTN_UP_PIN 14			// кнопка Up подключена сюда (BTN_PIN --- КНОПКА --- GND)
+#define BTN_DOWN_PIN 16			// кнопка Down подключена сюда (BTN_PIN --- КНОПКА --- GND)
+GButton butt_M(BTN_M_PIN);		//Объявляем кнопку
+GButton butt_Up(BTN_UP_PIN);		//Объявляем кнопку
+GButton butt_Down(BTN_DOWN_PIN);		//Объявляем кнопку
 DHT dht(DHTPIN, DHTTYPE);   //Объявляем датчик температуры
 GyverTM1637 disp(CLK, DIO); //Объявляем дисплей
 
