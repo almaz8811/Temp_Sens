@@ -20,10 +20,19 @@
 /* CODE END Includes */
 
 /* CODE BEGIN UD */
+
+// Параметры
+#define NAME_DEVICE "Temp_Sens_Vagon" // Имя устройства
+#define DHTPIN 4					  // Назначить пин датчика температуры
+#define DHTTYPE DHT22				  // DHT 22, AM2302, AM2321
+#define CLK 2						  //Назначить пин дисплея
+#define DIO 3						  //Назначить пин дисплея
+#define BTN_M_PIN 12				  // кнопка Menu подключена сюда (BTN_PIN --- КНОПКА --- GND)
+#define BTN_UP_PIN 14				  // кнопка Up подключена сюда (BTN_PIN --- КНОПКА --- GND)
+#define BTN_DOWN_PIN 16				  // кнопка Down подключена сюда (BTN_PIN --- КНОПКА --- GND)
+
 /* User defines ---------------------------------------------------------*/
 #define BLYNK_PRINT Serial
-
-#define NAME_DEVICE "Temp_Sens_Vagon"
 
 #define BUTTON_SYS0_PIN 0
 #define LED_SYS_PIN 13
@@ -48,20 +57,11 @@
 #define LED_SYS_OFF() digitalWrite(LED_SYS_PIN, HIGH)
 /* CODE END UD */
 
-#define DHTPIN 4	  // Назначить пин датчика температуры
-#define DHTTYPE DHT22 // DHT 22, AM2302, AM2321
-
-#define CLK 2 //Назначить пин дисплея
-#define DIO 3 //Назначить пин дисплея
-
-#define BTN_M_PIN 12			// кнопка Menu подключена сюда (BTN_PIN --- КНОПКА --- GND)
-#define BTN_UP_PIN 14			// кнопка Up подключена сюда (BTN_PIN --- КНОПКА --- GND)
-#define BTN_DOWN_PIN 16			// кнопка Down подключена сюда (BTN_PIN --- КНОПКА --- GND)
-GButton butt_M(BTN_M_PIN);		//Объявляем кнопку
-GButton butt_Up(BTN_UP_PIN);		//Объявляем кнопку
-GButton butt_Down(BTN_DOWN_PIN);		//Объявляем кнопку
-DHT dht(DHTPIN, DHTTYPE);   //Объявляем датчик температуры
-GyverTM1637 disp(CLK, DIO); //Объявляем дисплей
+GButton butt_M(BTN_M_PIN);		 //Объявляем кнопку
+GButton butt_Up(BTN_UP_PIN);	 //Объявляем кнопку
+GButton butt_Down(BTN_DOWN_PIN); //Объявляем кнопку
+DHT dht(DHTPIN, DHTTYPE);		 //Объявляем датчик температуры
+GyverTM1637 disp(CLK, DIO);		 //Объявляем дисплей
 
 /* CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -262,7 +262,7 @@ void setup()
 	timer.setInterval(INTERVAL_RECONNECT, timerReconnect);
 	DHT_init();
 	disp.clear();
-disp.brightness(7);  // яркость, 0 - 7 (минимум - максимум)
+	disp.brightness(7); // яркость, 0 - 7 (минимум - максимум)
 }
 
 // the loop function runs over and over again until power down or reset
