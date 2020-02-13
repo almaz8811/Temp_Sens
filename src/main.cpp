@@ -2,7 +2,7 @@
 /*
  Name:		Blynk_Template.ino
  Created:	9/19/2019 9:04:46 AM
- Author:	Andriy Honcharenko
+ Author:	AlMaz
 */
 
 /* CODE BEGIN Includes */
@@ -16,7 +16,12 @@
 #include <DHT.h>
 #include <TickerScheduler.h> //https://github.com/Toshik/TickerScheduler
 #include <GyverButton.h>
+#include <SPI.h>
 #include <GyverTM1637.h>
+//#include <Adafruit_NeoPixel.h>
+//#include <Adafruit_GFX.h>
+#include <PubSubClient.h>
+
 /* CODE END Includes */
 
 /* CODE BEGIN UD */
@@ -30,6 +35,13 @@
 #define BTN_M_PIN 12				  // кнопка Menu подключена сюда (BTN_PIN --- КНОПКА --- GND)
 #define BTN_UP_PIN 14				  // кнопка Up подключена сюда (BTN_PIN --- КНОПКА --- GND)
 #define BTN_DOWN_PIN 16				  // кнопка Down подключена сюда (BTN_PIN --- КНОПКА --- GND)
+// Настройки MQTT
+#define mqtt_server "tailor.cloudmqtt.com"		  // Имя сервера MQTT
+#define mqtt_port 11995							  // Порт для подключения к серверу MQTT
+#define mqtt_login "xnyqpfbu"					  // Логин от сервер
+#define mqtt_password "q94Tbl-0-WxH"			  // Пароль от сервера
+#define mqtt_topic_temp "/sensors/dht/vagon/temp" // Топик температуры
+#define mqtt_topic_hum "/sensors/dht/vagon/hum"   // Топик влажности
 
 /* User defines ---------------------------------------------------------*/
 #define BLYNK_PRINT Serial
@@ -62,6 +74,10 @@ GButton butt_Up(BTN_UP_PIN);	 //Объявляем кнопку
 GButton butt_Down(BTN_DOWN_PIN); //Объявляем кнопку
 DHT dht(DHTPIN, DHTTYPE);		 //Объявляем датчик температуры
 GyverTM1637 disp(CLK, DIO);		 //Объявляем дисплей
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+long lastMsg = 0; // Последнее сообщение MQTT
 
 /* CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -90,7 +106,7 @@ BlynkTimer timer;
 Ticker tickerESP8266;
 
 //Планировщик задач (Число задач)
-TickerScheduler ts(2);
+TickerScheduler ts(1);
 
 //Declaration OTA WebUpdater
 ESP8266WebServer httpServer(80);
@@ -109,17 +125,63 @@ static void timerSendServer(void);
 static void timerReconnect(void);
 /* CODE END PFP */
 
+// Запрос данных с MQTT
+void callback(char *topic, byte *payload, unsigned int length)
+{
+	Serial.print("Message arrived [");
+	Serial.print(topic); // отправляем в монитор порта название топика
+	Serial.print("] ");
+	for (int i = 0; i < length; i++)
+	{ // отправляем данные из топика
+		Serial.print((char)payload[i]);
+	}
+	Serial.println();
+}
+
+void reconnect()
+{
+  while (!client.connected())
+  { // крутимся пока не подключемся.
+    //Serial.print("Attempting MQTT connection...");
+    // создаем случайный идентификатор клиента
+    String clientId = "ESP8266Client-";
+    clientId += String(random(0xffff), HEX);
+    // подключаемся, в client.connect передаем ID, логин и пасс
+    if (client.connect(clientId.c_str(), mqtt_login, mqtt_password))
+    {
+      //Serial.println("connected");  // если подключились
+      client.subscribe(mqtt_topic_temp); // подписываемся на топик, в который же пишем данные
+    }
+    else
+    { /* иначе ругаемся в монитор порта
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+	  */
+      //delay(5000);
+    }
+  }
+}
+
 void DHT_init()
 {
-	int t, h;
+	float t, h;
+	char msg[5];
+	
 	dht.begin();		   //Запускаем датчик
 	delay(1000);		   // Нужно ждать иначе датчик не определится правильно
 	dht.readTemperature(); // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
-	ts.add(0, 3000, [&](void *) {
+	ts.add(0, 5000, [&](void *) {
 		t = dht.readTemperature();
+		
 		Blynk.virtualWrite(V1, t); // Запустим задачу 0 с интервалом test
+		
 		Blynk.virtualWrite(V2, dht.readHumidity());
-		disp.displayInt(t);
+		disp.display(0,int(t)/10);
+		disp.display(1,int(t)%10);
+		dtostrf(t, 5, 1, msg);
+		client.publish(mqtt_topic_temp, msg);                     // пишем в топик 
 	},
 		   nullptr, true);
 }
@@ -143,11 +205,12 @@ void setup()
 		wmSettings = defaults;
 	}
 
-	// Print old values to the terminal
+	/* Print old values to the terminal
 	Serial.println(wmSettings.host);
 	Serial.println(wmSettings.blynkToken);
 	Serial.println(wmSettings.blynkServer);
 	Serial.println(wmSettings.blynkPort);
+	*/
 
 	tickerESP8266.attach(0.5, tick); // start ticker with 0.5 because we start in AP mode and try to connect
 
@@ -187,6 +250,7 @@ void setup()
 	WiFiManagerParameter custom_blynk_port("blynk-port", "port", wmSettings.blynkPort, 6);
 	wifiManager.addParameter(&custom_blynk_port);
 
+
 	//set config save notify callback
 	wifiManager.setSaveConfigCallback(saveConfigCallback);
 
@@ -221,11 +285,12 @@ void setup()
 	strcpy(wmSettings.blynkServer, custom_blynk_server.getValue());
 	strcpy(wmSettings.blynkPort, custom_blynk_port.getValue());
 
-	// Print new values to the terminal
+	/* Print new values to the terminal
 	Serial.println(wmSettings.host);
 	Serial.println(wmSettings.blynkToken);
 	Serial.println(wmSettings.blynkServer);
 	Serial.println(wmSettings.blynkPort);
+	*/
 
 	if (shouldSaveConfigWM)
 	{
@@ -262,7 +327,10 @@ void setup()
 	timer.setInterval(INTERVAL_RECONNECT, timerReconnect);
 	DHT_init();
 	disp.clear();
-	disp.brightness(7); // яркость, 0 - 7 (минимум - максимум)
+	disp.brightness(7);						  // яркость, 0 - 7 (минимум - максимум)
+	disp.point(1);
+	client.setServer(mqtt_server, mqtt_port); // указываем адрес брокера и порт
+	client.setCallback(callback);			  // указываем функцию которая вызывается когда приходят данные от брокера
 }
 
 // the loop function runs over and over again until power down or reset
@@ -285,9 +353,14 @@ void loop()
 	httpServer.handleClient(); // Initiates OTA WebUpdater
 
 	readSystemKey();
-	ts.update();  //планировщик задач
-	butt1.tick(); // обязательная функция отработки. Должна постоянно опрашиватьсяbutt1.tick();  // обязательная функция отработки. Должна постоянно опрашиваться
-				  //if (butt1.isSingle()) Serial.println("Single");     // проверка на один клик
+	ts.update();   //планировщик задач
+	butt_M.tick(); // обязательная функция отработки. Должна постоянно опрашиватьсяbutt1.tick();  // обязательная функция отработки. Должна постоянно опрашиваться
+				   //if (butt1.isSingle()) Serial.println("Single");     // проверка на один клик
+
+	if (!client.connected()) {                             // проверяем подключение к брокеру
+    reconnect();                                            // еще бы проверить подкючение к wifi...
+  }
+  client.loop();
 }
 
 /* BLYNK CODE BEGIN */
