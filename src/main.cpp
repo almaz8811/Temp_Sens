@@ -161,7 +161,6 @@ void DHT_init()
 		char msgH[10];
 		float tm = dht.readTemperature();
 		float hm = dht.readHumidity();
-
 		dtostrf(tm, 5, 1, msgT);
 		client.publish(mqtt_topic_temp, msgT); // пишем в топик
 		dtostrf(hm, 5, 1, msgH);
