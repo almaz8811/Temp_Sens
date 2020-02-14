@@ -28,13 +28,13 @@
 
 // Параметры
 #define NAME_DEVICE "Temp_Sens_Vagon" // Имя устройства
-#define DHTPIN 4					  // Назначить пин датчика температуры
+#define DHTPIN 12					  // Назначить пин датчика температуры
 #define DHTTYPE DHT22				  // DHT 22, AM2302, AM2321
 #define CLK 2						  //Назначить пин дисплея
 #define DIO 3						  //Назначить пин дисплея
-#define BTN_M_PIN 12				  // кнопка Menu подключена сюда (BTN_PIN --- КНОПКА --- GND)
-#define BTN_UP_PIN 14				  // кнопка Up подключена сюда (BTN_PIN --- КНОПКА --- GND)
-#define BTN_DOWN_PIN 16				  // кнопка Down подключена сюда (BTN_PIN --- КНОПКА --- GND)
+
+#define BTN_UP_PIN 5				  // кнопка Up подключена сюда (BTN_PIN --- КНОПКА --- GND)
+#define BTN_DOWN_PIN 4				  // кнопка Down подключена сюда (BTN_PIN --- КНОПКА --- GND)
 // Настройки MQTT
 #define mqtt_server "tailor.cloudmqtt.com"		  // Имя сервера MQTT
 #define mqtt_port 11995							  // Порт для подключения к серверу MQTT
@@ -69,7 +69,7 @@
 #define LED_SYS_OFF() digitalWrite(LED_SYS_PIN, HIGH)
 /* CODE END UD */
 
-GButton butt_M(BTN_M_PIN);		 //Объявляем кнопку
+
 GButton butt_Up(BTN_UP_PIN);	 //Объявляем кнопку
 GButton butt_Down(BTN_DOWN_PIN); //Объявляем кнопку
 DHT dht(DHTPIN, DHTTYPE);		 //Объявляем датчик температуры
@@ -87,6 +87,7 @@ bool triggerBlynkConnect = false;
 bool isFirstConnect = true; // Keep this flag not to re-sync on every reconnection
 
 int startPressBtn = 0;
+
 
 //structure for initial settings. It now takes 116 bytes
 typedef struct
@@ -106,7 +107,7 @@ BlynkTimer timer;
 Ticker tickerESP8266;
 
 //Планировщик задач (Число задач)
-TickerScheduler ts(1);
+TickerScheduler ts(2);
 
 //Declaration OTA WebUpdater
 ESP8266WebServer httpServer(80);
@@ -151,6 +152,7 @@ void reconnect()
     {
       //Serial.println("connected");  // если подключились
       client.subscribe(mqtt_topic_temp); // подписываемся на топик, в который же пишем данные
+	  client.subscribe(mqtt_topic_hum); // подписываемся на топик, в который же пишем данные
     }
     else
     { /* иначе ругаемся в монитор порта
@@ -166,22 +168,36 @@ void reconnect()
 
 void DHT_init()
 {
-	float t, h;
-	char msg[5];
+
+
 	
 	dht.begin();		   //Запускаем датчик
 	delay(1000);		   // Нужно ждать иначе датчик не определится правильно
 	dht.readTemperature(); // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
 	ts.add(0, 5000, [&](void *) {
-		t = dht.readTemperature();
+		float t = dht.readTemperature();
+		float h = dht.readHumidity();
+		Blynk.virtualWrite(V1, t); // Запустим задачу 0 с интервалом test		
+		Blynk.virtualWrite(V2, h);
+                    // пишем в топик                   // пишем в топик
+disp.displayInt(round(t*10)/10);
+		disp.displayByte(0, _C);
 		
-		Blynk.virtualWrite(V1, t); // Запустим задачу 0 с интервалом test
+	},
+		   nullptr, true);
+
+		   	ts.add(1, 8000, [&](void *) {
+				   	char msgT[10];
+	char msgH[10];
+				float tm = dht.readTemperature();
+		float hm = dht.readHumidity();
 		
-		Blynk.virtualWrite(V2, dht.readHumidity());
-		disp.display(0,int(t)/10);
-		disp.display(1,int(t)%10);
-		dtostrf(t, 5, 1, msg);
-		client.publish(mqtt_topic_temp, msg);                     // пишем в топик 
+		dtostrf(tm, 5, 1, msgT);
+		client.publish(mqtt_topic_temp, msgT);                     // пишем в топик
+		dtostrf(hm, 5, 1, msgH);
+		client.publish(mqtt_topic_hum, msgH);                     // пишем в топик
+		
+		
 	},
 		   nullptr, true);
 }
@@ -328,7 +344,7 @@ void setup()
 	DHT_init();
 	disp.clear();
 	disp.brightness(7);						  // яркость, 0 - 7 (минимум - максимум)
-	disp.point(1);
+	disp.point(0);
 	client.setServer(mqtt_server, mqtt_port); // указываем адрес брокера и порт
 	client.setCallback(callback);			  // указываем функцию которая вызывается когда приходят данные от брокера
 }
@@ -354,7 +370,7 @@ void loop()
 
 	readSystemKey();
 	ts.update();   //планировщик задач
-	butt_M.tick(); // обязательная функция отработки. Должна постоянно опрашиватьсяbutt1.tick();  // обязательная функция отработки. Должна постоянно опрашиваться
+	//butt_M.tick(); // обязательная функция отработки. Должна постоянно опрашиватьсяbutt1.tick();  // обязательная функция отработки. Должна постоянно опрашиваться
 				   //if (butt1.isSingle()) Serial.println("Single");     // проверка на один клик
 
 	if (!client.connected()) {                             // проверяем подключение к брокеру
@@ -494,7 +510,7 @@ static void readSystemKey(void)
 			{
 				Blynk.notify(String(wmSettings.host) + F(" reboot!"));
 			}
-
+disp.displayByte(_r, _E, _S, _t);
 			Blynk.disconnect();
 			tickerESP8266.attach(0.1, tick);
 			delay(2000);
