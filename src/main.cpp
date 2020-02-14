@@ -42,8 +42,8 @@
 #define LED_SYS_PIN 13
 #define BUTTON_SYS_B0_VPIN V20
 #define WIFI_SIGNAL_VPIN V80 // Пин уровня сигнала WiFi
-#define INTERVAL_PRESSED_RESET_ESP 3000L
-#define INTERVAL_PRESSED_RESET_SETTINGS 5000L
+#define INTERVAL_PRESSED_RESET_ESP 5000L
+#define INTERVAL_PRESSED_RESET_SETTINGS 30000L
 #define INTERVAL_PRESSED_SHORT 50
 #define INTERVAL_SEND_DATA 30033L
 #define INTERVAL_RECONNECT 60407L
@@ -191,17 +191,17 @@ void setup()
 
 	WiFiManager wifiManager;
 	wifiManager.setConfigPortalTimeout(WIFI_MANAGER_TIMEOUT);
-	WiFiManagerParameter custom_device_name_text("<br/>Enter name of the device<br/>or leave it as it is<br/>");
+	WiFiManagerParameter custom_device_name_text("<br/>Введите имя устройства<br/>или оставьте как есть<br/>");
 	wifiManager.addParameter(&custom_device_name_text);
-	WiFiManagerParameter custom_device_name("device-name", "device name", wmSettings.host, 33);
+	WiFiManagerParameter custom_device_name("device-name", "Имя устройства", wmSettings.host, 33);
 	wifiManager.addParameter(&custom_device_name);
-	WiFiManagerParameter custom_blynk_text("<br/>Blynk config.<br/>");
+	WiFiManagerParameter custom_blynk_text("<br/>Настройка Blynk<br/>");
 	wifiManager.addParameter(&custom_blynk_text);
-	WiFiManagerParameter custom_blynk_token("blynk-token", "blynk token", wmSettings.blynkToken, 33);
+	WiFiManagerParameter custom_blynk_token("blynk-token", "Blynk токен", wmSettings.blynkToken, 33);
 	wifiManager.addParameter(&custom_blynk_token);
-	WiFiManagerParameter custom_blynk_server("blynk-server", "blynk server", wmSettings.blynkServer, 33);
+	WiFiManagerParameter custom_blynk_server("blynk-server", "Blynk сервер", wmSettings.blynkServer, 33);
 	wifiManager.addParameter(&custom_blynk_server);
-	WiFiManagerParameter custom_blynk_port("blynk-port", "port", wmSettings.blynkPort, 6);
+	WiFiManagerParameter custom_blynk_port("blynk-port", "Blynk порт", wmSettings.blynkPort, 6);
 	wifiManager.addParameter(&custom_blynk_port);
 	wifiManager.setSaveConfigCallback(saveConfigCallback);
 	wifiManager.setAPCallback(configModeCallback);
@@ -415,6 +415,7 @@ static void readSystemKey(void)
 
 		if (pressTime > INTERVAL_PRESSED_RESET_ESP && pressTime < INTERVAL_PRESSED_RESET_SETTINGS)
 		{
+			disp.displayByte(_r, _E, _b, _t);
 			if (Blynk.connected())
 			{
 				Blynk.notify(String(wmSettings.host) + F(" reboot!"));
@@ -426,11 +427,11 @@ static void readSystemKey(void)
 		}
 		else if (pressTime > INTERVAL_PRESSED_RESET_SETTINGS)
 		{
+			disp.displayByte(_r, _E, _S, _t);
 			if (Blynk.connected())
 			{
 				Blynk.notify(String(wmSettings.host) + F(" setting reset! Connected WiFi AP this device!"));
 			}
-			disp.displayByte(_r, _E, _S, _t);
 			WMSettings defaults;
 			wmSettings = defaults;
 
