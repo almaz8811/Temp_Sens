@@ -73,6 +73,8 @@ bool btnSystemState0 = false;
 bool triggerBlynkConnect = false;
 bool isFirstConnect = true; // Keep this flag not to re-sync on every reconnection
 
+bool dispTemp = true; // Переменная выбора отображения температуры/влажности
+
 int startPressBtn = 0;
 
 //structure for initial settings. It now takes 116 bytes
@@ -144,16 +146,24 @@ void reconnect()
 
 void DHT_init()
 {
-	dht.begin();		   //Запускаем датчик
-	delay(1000);		   // Нужно ждать иначе датчик не определится правильно
-	dht.readTemperature(); // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
+	dht.begin();				  //Запускаем датчик
+	delay(1000);				  // Нужно ждать иначе датчик не определится правильно
+	dht.readTemperature();		  // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
 	ts.add(0, 5000, [&](void *) { // Запустим задачу 0 с интервалом
 		float t = dht.readTemperature();
 		float h = dht.readHumidity();
 		Blynk.virtualWrite(V1, t);
 		Blynk.virtualWrite(V2, h);
-		disp.displayInt(round(t * 10) / 10); // Убираем дробную часть
-		disp.displayByte(0, _C); // Вывод символа C
+		if (dispTemp)
+		{
+			disp.displayInt(round(t * 10) / 10); // Убираем дробную часть
+			disp.displayByte(0, _C);			 // Вывод символа C
+		}
+		else
+		{
+			disp.displayInt(round(h * 10) / 10); // Убираем дробную часть
+			disp.displayByte(0, _H);			 // Вывод символа H
+		}
 	},
 		   nullptr, true);
 	ts.add(1, 8000, [&](void *) { // Запустим задачу 1 с интервалом
@@ -245,11 +255,11 @@ void setup()
 
 	if (Blynk.connect())
 	{
-		//TODO: something to do if connected
+		// something to do if connected
 	}
 	else
 	{
-		//TODO: something to do if you failed to connect
+		// something to do if you failed to connect
 	}
 
 	timer.setInterval(INTERVAL_REFRESH_DATA, timerRefreshData);
@@ -257,10 +267,10 @@ void setup()
 	timer.setInterval(INTERVAL_RECONNECT, timerReconnect);
 	DHT_init();
 	disp.clear();
-	disp.brightness(7); // яркость, 0 - 7 (минимум - максимум)
-	disp.point(0); // Отключить точки на дисплее
+	disp.brightness(7);						  // яркость, 0 - 7 (минимум - максимум)
+	disp.point(0);							  // Отключить точки на дисплее
 	client.setServer(mqtt_server, mqtt_port); // указываем адрес брокера и порт
-	//client.setCallback(callback);			  // указываем функцию которая вызывается когда приходят данные от брокера
+											  //client.setCallback(callback);			  // указываем функцию которая вызывается когда приходят данные от брокера
 }
 
 void loop()
@@ -277,13 +287,14 @@ void loop()
 		}
 	}
 
-	timer.run(); // Инициализация BlynkTimer
+	timer.run();			   // Инициализация BlynkTimer
 	httpServer.handleClient(); // Инициализация OTA WebUpdater
 	readSystemKey();
 	ts.update(); //планировщик задач
 
 	butt_Up.tick(); // обязательная функция отработки. Должна постоянно опрашиватьсяb
-	if (butt_Up.isSingle()) Serial.println("Single");     // проверка на один клик
+	if (butt_Up.isSingle())
+		Serial.println("Single"); // проверка на один клик
 
 	if (!client.connected())
 	{				 // проверяем подключение к брокеру
@@ -340,7 +351,7 @@ static void timerReconnect(void)
 {
 	if (WiFi.status() != WL_CONNECTED)
 	{
-/* 		Serial.println(F("WiFi not connected"));
+		/* 		Serial.println(F("WiFi not connected"));
 		if (WiFi.begin() == WL_CONNECTED)
 		{
 			Serial.println(F("WiFi reconnected"));
@@ -352,7 +363,7 @@ static void timerReconnect(void)
 	}
 	else // if (WiFi.status() == WL_CONNECTED)
 	{
-/* 		Serial.println(F("WiFi in connected"));
+		/* 		Serial.println(F("WiFi in connected"));
 
 		if (!Blynk.connected())
 		{
@@ -374,7 +385,7 @@ static void timerReconnect(void)
 
 static void configModeCallback(WiFiManager *myWiFiManager)
 {
-/* 	Serial.println(F("Entered config mode"));
+	/* 	Serial.println(F("Entered config mode"));
 	Serial.println(WiFi.softAPIP());
 	//if you used auto generated SSID, print it
 	Serial.println(myWiFiManager->getConfigPortalSSID());
@@ -453,8 +464,22 @@ static void readSystemKey(void)
 			//Serial.println(F("System button_0 pressed is Device!"));
 			// TODO: insert here what will happen when you press the ON / OFF button
 		}
-		else if (pressTime < INTERVAL_PRESSED_SHORT)
+		else if (pressTime < INTERVAL_PRESSED_SHORT) // Коротное нажатие
 		{
+			float t = dht.readTemperature();
+			float h = dht.readHumidity();
+			if (dispTemp)
+			{
+				dispTemp = false;
+				disp.displayInt(round(h * 10) / 10); // Убираем дробную часть
+				disp.displayByte(0, _H);			 // Вывод символа H
+			}
+			else
+			{
+				dispTemp = true;
+				disp.displayInt(round(t * 10) / 10); // Убираем дробную часть
+				disp.displayByte(0, _C);			 // Вывод символа C
+			}
 			// Serial.printf("Fixed false triggering %ims", pressTime);
 			// Serial.println();
 		}
