@@ -27,15 +27,18 @@
 #define CLK 2						  // Назначить пин дисплея
 #define DIO 3						  // Назначить пин дисплея
 #define BUTTON_SYS0_PIN 0			  // Назначить кномпку меню и сброса параметров
-#define BTN_UP_PIN 5				  // кнопка Up подключена сюда (BTN_PIN --- КНОПКА --- GND)
-#define BTN_DOWN_PIN 4				  // кнопка Down подключена сюда (BTN_PIN --- КНОПКА --- GND)
+#define BTN_UP_PIN 4				  // кнопка Up подключена сюда (BTN_PIN --- КНОПКА --- GND)
+#define BTN_DOWN_PIN 5				  // кнопка Down подключена сюда (BTN_PIN --- КНОПКА --- GND)
+#define PRESS_TIME_GYVER 3000		  // Время длинного нажатия кнопок Up/Down
 // Настройки MQTT
-#define mqtt_server "tailor.cloudmqtt.com"		  // Имя сервера MQTT
-#define mqtt_port 11995							  // Порт для подключения к серверу MQTT
-#define mqtt_login "xnyqpfbu"					  // Логин от сервер
-#define mqtt_password "q94Tbl-0-WxH"			  // Пароль от сервера
-#define mqtt_topic_temp "/sensors/dht/vagon/temp" // Топик температуры
-#define mqtt_topic_hum "/sensors/dht/vagon/hum"   // Топик влажности
+#define mqtt_server "tailor.cloudmqtt.com"				  // Имя сервера MQTT
+#define mqtt_port 11995									  // Порт для подключения к серверу MQTT
+#define mqtt_login "xnyqpfbu"							  // Логин от сервер
+#define mqtt_password "q94Tbl-0-WxH"					  // Пароль от сервера
+#define mqtt_topic_temp "/sensors/dht/vagon/temp"		  // Топик температуры
+#define mqtt_topic_hum "/sensors/dht/vagon/hum"			  // Топик влажности
+#define mqtt_topic_gistUp "/sensors/dht/vagon/gistUp"	 // Топик влажности
+#define mqtt_topic_gistDown "/sensors/dht/vagon/gistDown" // Топик влажности
 
 /* User defines ---------------------------------------------------------*/
 #define BLYNK_PRINT Serial
@@ -70,11 +73,14 @@ long lastMsg = 0; // Последнее сообщение MQTT
 /* Private variables ---------------------------------------------------------*/
 bool shouldSaveConfigWM = false; //flag for saving data
 bool btnSystemState0 = false;
+bool btnUpState = false;
+bool btnDownState = false;
 bool triggerBlynkConnect = false;
 bool isFirstConnect = true; // Keep this flag not to re-sync on every reconnection
 
 bool dispTemp = true; // Переменная выбора отображения температуры/влажности
 
+int gistUp, gistDown = 0; // Переменная гистерезиса
 int startPressBtn = 0;
 
 //structure for initial settings. It now takes 116 bytes
@@ -112,7 +118,7 @@ static void timerReconnect(void);
 /* CODE END PFP */
 
 // Запрос данных с MQTT
-/* void callback(char *topic, byte *payload, unsigned int length)
+void callback(char *topic, byte *payload, unsigned int length)
 {
 	Serial.print("Message arrived [");
 	Serial.print(topic); // отправляем в монитор порта название топика
@@ -122,7 +128,7 @@ static void timerReconnect(void);
 		Serial.print((char)payload[i]);
 	}
 	Serial.println();
-} */
+}
 
 void reconnect()
 {
@@ -134,8 +140,10 @@ void reconnect()
 		// подключаемся, в client.connect передаем ID, логин и пасс
 		if (client.connect(clientId.c_str(), mqtt_login, mqtt_password))
 		{
-			client.subscribe(mqtt_topic_temp); // подписываемся на топик, в который же пишем данные
-			client.subscribe(mqtt_topic_hum);  // подписываемся на топик, в который же пишем данные
+			client.subscribe(mqtt_topic_temp);	 // подписываемся на топик, в который же пишем данные
+			client.subscribe(mqtt_topic_hum);	  // подписываемся на топик, в который же пишем данные
+			client.subscribe(mqtt_topic_gistUp);   // подписываемся на топик, в который же пишем данные
+			client.subscribe(mqtt_topic_gistDown); // подписываемся на топик, в который же пишем данные
 		}
 		else
 		{
@@ -270,7 +278,7 @@ void setup()
 	disp.brightness(7);						  // яркость, 0 - 7 (минимум - максимум)
 	disp.point(0);							  // Отключить точки на дисплее
 	client.setServer(mqtt_server, mqtt_port); // указываем адрес брокера и порт
-											  //client.setCallback(callback);			  // указываем функцию которая вызывается когда приходят данные от брокера
+	client.setCallback(callback);			  // указываем функцию которая вызывается когда приходят данные от брокера
 }
 
 void loop()
@@ -292,9 +300,18 @@ void loop()
 	readSystemKey();
 	ts.update(); //планировщик задач
 
-	butt_Up.tick(); // обязательная функция отработки. Должна постоянно опрашиватьсяb
+	/* 	butt_Up.tick(); // обязательная функция отработки. Должна постоянно опрашиватьсяb
 	if (butt_Up.isSingle())
-		Serial.println("Single"); // проверка на один клик
+	{
+		disp.displayInt(gistUp);   // Вывод верхней температуры
+		disp.displayByte(0, 0x62); // Вывод символа Up
+	}
+	butt_Down.tick(); // обязательная функция отработки. Должна постоянно опрашиватьсяb
+	if (butt_Down.isSingle())
+	{
+		disp.displayInt(gistDown); // Вывод верхней температуры
+		disp.displayByte(0, 0x1c); // Вывод символа Down
+	} */
 
 	if (!client.connected())
 	{				 // проверяем подключение к брокеру
@@ -461,11 +478,6 @@ static void readSystemKey(void)
 		}
 		else if (pressTime < INTERVAL_PRESSED_RESET_ESP && pressTime > INTERVAL_PRESSED_SHORT)
 		{
-			//Serial.println(F("System button_0 pressed is Device!"));
-			// TODO: insert here what will happen when you press the ON / OFF button
-		}
-		else if (pressTime < INTERVAL_PRESSED_SHORT) // Коротное нажатие
-		{
 			float t = dht.readTemperature();
 			float h = dht.readHumidity();
 			if (dispTemp)
@@ -480,9 +492,16 @@ static void readSystemKey(void)
 				disp.displayInt(round(t * 10) / 10); // Убираем дробную часть
 				disp.displayByte(0, _C);			 // Вывод символа C
 			}
+			//Serial.println(F("System button_0 pressed is Device!"));
+			// TODO: insert here what will happen when you press the ON / OFF button
+		}
+		else if (pressTime < INTERVAL_PRESSED_SHORT) // Коротное нажатие
+		{
+
 			// Serial.printf("Fixed false triggering %ims", pressTime);
 			// Serial.println();
 		}
 	}
 }
+
 /* CODE END USER FUNCTION */
